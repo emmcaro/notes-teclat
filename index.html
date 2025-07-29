@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entrenador de Notes al Piano</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+
+    :root {
+      --bg-dark: #1C2135;
+      --card-bg: #2C344F;
+      --primary-text: #FFFFFF;
+      --secondary-text: #A9B1D6;
+      --accent-pink: #E04463;
+      --accent-green: #89d489;
+    }
+
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      background-color: var(--bg-dark);
+      color: var(--secondary-text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .container {
+      background-color: var(--card-bg);
+      padding: 30px;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 500px; /* Una mica més ample per al teclat */
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+    
+    h1 {
+      font-size: 1.3em;
+      color: var(--primary-text);
+      font-weight: 700;
+      margin: 0 0 20px 0;
+    }
+
+    .top-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      font-size: 0.9em;
+    }
+
+    #punts, #temps {
+      margin: 0;
+    }
+    
+    #pregunta {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.8em;
+      font-weight: 700;
+      color: var(--primary-text);
+      margin: 0 0 30px 0;
+      height: 50px;
+    }
+    
+    #resultat, #resum {
+      font-weight: bold;
+      font-size: 1.2em;
+      min-height: 30px;
+      color: var(--accent-pink);
+      margin-top: 30px;
+    }
+
+    #resum {
+      color: var(--primary-text);
+    }
+    
+    /* --- Estils del Teclat de Piano --- */
+    .piano-keyboard {
+      display: flex;
+      justify-content: center;
+      position: relative;
+    }
+
+    .key {
+      border: 2px solid #333;
+      cursor: pointer;
+      box-sizing: border-box;
+      transition: background-color 0.1s ease;
+    }
+    .key.white {
+      width: 14.28%; /* 100% / 7 tecles blanques */
+      height: 200px;
+      background-color: #f9f9f9;
+      border-bottom-left-radius: 5px;
+      border-bottom-right-radius: 5px;
+    }
+    .key.black {
+      position: absolute;
+      width: 9%;
+      height: 120px;
+      background-color: #333;
+      z-index: 2;
+      border-radius: 5px;
+    }
+    
+    /* Posicionament de les tecles negres */
+    .key[data-note="C#"] { left: 9.7%; }
+    .key[data-note="D#"] { left: 24%; }
+    .key[data-note="F#"] { left: 52.8%; }
+    .key[data-note="G#"] { left: 67.1%; }
+    .key[data-note="A#"] { left: 81.4%; }
+
+    /* Estats de les tecles */
+    .key:not(.disabled):hover {
+        background-color: #ddd;
+    }
+    .key.black:not(.disabled):hover {
+        background-color: #555;
+    }
+    
+    .key.correct { background-color: var(--accent-green) !important; }
+    .key.incorrect { background-color: var(--accent-pink) !important; }
+    .key.disabled { cursor: not-allowed; }
+
+
+    audio { display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>🎹 On és la nota?</h1>
+
+    <div class="top-info">
+        <p id="punts">Punts: 0</p>
+        <p id="temps">Temps: 5s</p>
+    </div>
+
+    <p id="pregunta">Carregant...</p>
+    
+    <div class="piano-keyboard" id="piano">
+      <div class="key white" data-note="C"></div>
+      <div class="key white" data-note="D"></div>
+      <div class="key white" data-note="E"></div>
+      <div class="key white" data-note="F"></div>
+      <div class="key white" data-note="G"></div>
+      <div class="key white" data-note="A"></div>
+      <div class="key white" data-note="B"></div>
+      <div class="key black" data-note="C#"></div>
+      <div class="key black" data-note="D#"></div>
+      <div class="key black" data-note="F#"></div>
+      <div class="key black" data-note="G#"></div>
+      <div class="key black" data-note="A#"></div>
+    </div>
+
+    <p id="resultat"></p>
+    <p id="resum"></p>
+  </div>
+
+  <audio id="soCorrecte" src="sounds/correcte.mp3" preload="auto"></audio>
+  <audio id="soError" src="sounds/error.mp3" preload="auto"></audio>
+  <audio id="soBenvinguda" src="sounds/benvinguda.mp3" preload="auto"></audio>
+
+  <script>
+    // --- Llistes de notes i mapes ---
+    const notesNaturals = ["Do", "Re", "Mi", "Fa", "Sol", "La", "Si"];
+    const notesAlterades = ["Do#", "Re#", "Fa#", "Sol#", "La#", "Reb", "Mib", "Solb", "Lab", "Sib"];
+    const mapaNotes = {
+      "Do": "C", "Re": "D", "Mi": "E", "Fa": "F", "Sol": "G", "La": "A", "Si": "B",
+      "Do#": "C#", "Reb": "C#", "Re#": "D#", "Mib": "D#", "Fa#": "F#", "Solb": "F#",
+      "Sol#": "G#", "Lab": "G#", "La#": "A#", "Sib": "A#"
+    };
+
+    let notaPreguntada = "";
+    let punts = 0, totalRespostes = 0;
+    const tempsMaxim = 5;
+    let temps = tempsMaxim, intervalId = null;
+    let respostaJaDonada = false;
+
+    const piano = document.getElementById("piano");
+    const preguntaEl = document.getElementById("pregunta");
+    const resultatEl = document.getElementById("resultat");
+    const puntsEl = document.getElementById("punts");
+    const tempsEl = document.getElementById("temps");
+    const resumEl = document.getElementById("resum");
+
+    const soCorrecte = document.getElementById("soCorrecte");
+    const soError = document.getElementById("soError");
+    const soBenvinguda = document.getElementById("soBenvinguda");
+
+    function nouRepte() {
+      if (totalRespostes >= 10) {
+        bloquejarSiAcabat();
+        return;
+      }
+      
+      // Netejem estats anteriors
+      resultatEl.textContent = "";
+      document.querySelectorAll('.key').forEach(k => k.classList.remove('correct', 'incorrect', 'disabled'));
+
+      // Determinem la dificultat
+      const notesDisponibles = totalRespostes < 5 ? notesNaturals : [...notesNaturals, ...notesAlterades];
+      notaPreguntada = notesDisponibles[Math.floor(Math.random() * notesDisponibles.length)];
+      
+      preguntaEl.textContent = notaPreguntada;
+      
+      temps = tempsMaxim;
+      tempsEl.textContent = `Temps: ${temps}s`;
+      if (intervalId) clearInterval(intervalId);
+      intervalId = setInterval(actualitzarTemps, 1000);
+      
+      respostaJaDonada = false;
+    }
+
+    function actualitzarTemps() {
+      temps--;
+      tempsEl.textContent = `Temps: ${temps}s`;
+      if (temps < 0 && !respostaJaDonada) {
+        clearInterval(intervalId);
+        soError.play();
+        resultatEl.textContent = "Temps esgotat!";
+        const notaCorrectaKey = document.querySelector(`[data-note="${mapaNotes[notaPreguntada]}"]`);
+        notaCorrectaKey.classList.add('incorrect'); // Mostra la correcta en vermell
+        finalitzarTorn();
+      }
+    }
+
+    function comprovar(event) {
+      if (respostaJaDonada || !event.target.classList.contains('key')) return;
+      
+      respostaJaDonada = true;
+      clearInterval(intervalId);
+
+      const notaClicada = event.target.dataset.note;
+      const notaCorrecta = mapaNotes[notaPreguntada];
+
+      if (notaClicada === notaCorrecta) {
+        punts++;
+        soCorrecte.play();
+        resultatEl.textContent = "Molt bé!";
+        resultatEl.style.color = 'var(--accent-green)';
+        event.target.classList.add('correct');
+      } else {
+        soError.play();
+        resultatEl.textContent = "Oh, no!";
+        resultatEl.style.color = 'var(--accent-pink)';
+        event.target.classList.add('incorrect');
+        // Mostra també la correcta
+        const notaCorrectaKey = document.querySelector(`[data-note="${notaCorrecta}"]`);
+        notaCorrectaKey.classList.add('correct');
+      }
+      finalitzarTorn();
+    }
+    
+    function finalitzarTorn() {
+        totalRespostes++;
+        puntsEl.textContent = `Punts: ${punts}`;
+        document.querySelectorAll('.key').forEach(k => k.classList.add('disabled')); // Desactivem el teclat
+        setTimeout(nouRepte, 1800); // Esperem una mica abans del següent repte
+    }
+
+    function bloquejarSiAcabat() {
+      preguntaEl.textContent = "🎉";
+      resumEl.textContent = `Joc acabat! Has fet ${punts} punts de 10.`;
+      document.querySelectorAll('.key').forEach(k => k.classList.add('disabled'));
+      if(intervalId) clearInterval(intervalId);
+      tempsEl.textContent = "Temps: 0s";
+    }
+
+    piano.addEventListener("click", comprovar);
+
+    window.onload = () => {
+      soBenvinguda.play().catch(() => {});
+      nouRepte();
+    };
+  </script>
+</body>
+</html>
